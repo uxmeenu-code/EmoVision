@@ -27,71 +27,10 @@
     ::-webkit-scrollbar { width:4px; height:4px; }
     ::-webkit-scrollbar-thumb { background:#e2ddd6; border-radius:2px; }
   </style>
-</head>
-<body>
-  <div id="root"><div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:Helvetica,sans-serif;color:#6b6b7a;font-size:14px;">Loading EmoVision…</div></div>
 
-<script type="text/babel">
-const { useState, useCallback, useEffect, useRef } = React;
-
-/* ── CONFIG — replace with your Anthropic API key ───────────────────────── */
-/* API key — stored in localStorage so you only enter it once */
-const ANTHROPIC_API_KEY = (() => {
-  let k = localStorage.getItem("emo_api_key");
-  if (!k || k.length < 10) {
-    k = prompt("Enter your Anthropic API key:\n(Stored locally in your browser only — never shared)");
-    if (k && k.trim().length > 10) {
-      localStorage.setItem("emo_api_key", k.trim());
-    }
-  }
-  return (k || "").trim();
-})();
-const MODEL             = "claude-sonnet-4-20250514";
-const API_URL           = "https://api.anthropic.com/v1/messages";
-/* ────────────────────────────────────────────────────────────────────────── */
-
-const C = {
-  ink:"#0a0a0f", paper:"#f5f2ec", ember:"#ff4d1c",
-  gold:"#f5c842", violet:"#7b2fff", teal:"#00d4b4",
-  muted:"#6b6b7a", border:"#e2ddd6", surface:"#ffffff",
-};
-
-const EGRADS = {
-  joy:"linear-gradient(135deg,#ff9a3c,#ff4d1c)",
-  happy:"linear-gradient(135deg,#ff9a3c,#ff4d1c)",
-  happiness:"linear-gradient(135deg,#ff9a3c,#ff4d1c)",
-  celebration:"linear-gradient(135deg,#f5c842,#ff9a3c)",
-  love:"linear-gradient(135deg,#ff6b9d,#ff4d1c)",
-  sadness:"linear-gradient(135deg,#4a6fa5,#2c4a7c)",
-  sad:"linear-gradient(135deg,#4a6fa5,#2c4a7c)",
-  nostalgia:"linear-gradient(135deg,#8B7355,#c9a96e)",
-  excitement:"linear-gradient(135deg,#7b2fff,#ff4d1c)",
-  excited:"linear-gradient(135deg,#7b2fff,#ff4d1c)",
-  calm:"linear-gradient(135deg,#00d4b4,#0099ff)",
-  peaceful:"linear-gradient(135deg,#00d4b4,#0099ff)",
-  awe:"linear-gradient(135deg,#1a1a2e,#7b2fff)",
-  wonder:"linear-gradient(135deg,#1a1a2e,#7b2fff)",
-  anger:"linear-gradient(135deg,#c0392b,#e74c3c)",
-  surprise:"linear-gradient(135deg,#f39c12,#e67e22)",
-  pride:"linear-gradient(135deg,#8e44ad,#3498db)",
-  gratitude:"linear-gradient(135deg,#27ae60,#2ecc71)",
-  content:"linear-gradient(135deg,#00b894,#00cec9)",
-  playful:"linear-gradient(135deg,#fdcb6e,#e17055)",
-};
-const emoGrad = e =>
-  EGRADS[(e||"").toLowerCase().replace(/[^a-z]/g,"")] ||
-  EGRADS[(e||"").toLowerCase().split(/[\s/,]/)[0]] ||
-  "linear-gradient(135deg,#0a0a0f,#2a2a3f)";
-
-const TABS = [
-  {id:"analysis", emoji:"🧠", label:"Analysis"},
-  {id:"captions", emoji:"✍️",  label:"Captions"},
-  {id:"hashtags", emoji:"🔖", label:"Hashtags"},
-  {id:"story",    emoji:"📖", label:"Story"},
-  {id:"palette",  emoji:"🎨", label:"Palette"},
-  {id:"styles",   emoji:"✨", label:"Styles"},
-];
-
+<script>
+/* prepareImage — must live in a plain <script> (not Babel) so
+   URL.createObjectURL works correctly in Safari / WebKit */
 /* ── Image compression → stays under 4 MB API limit ───────────────────── */
 function prepareImage(file) {
   return new Promise((resolve, reject) => {
@@ -162,6 +101,23 @@ function prepareImage(file) {
   });
 }
 
+
+/* ── CONFIG — replace with your Anthropic API key ───────────────────────── */
+/* API key — stored in localStorage so you only enter it once */
+const ANTHROPIC_API_KEY = (() => {
+  let k = localStorage.getItem("emo_api_key");
+  if (!k || k.length < 10) {
+    k = prompt("Enter your Anthropic API key:\n(Stored locally in your browser only — never shared)");
+    if (k && k.trim().length > 10) {
+      localStorage.setItem("emo_api_key", k.trim());
+    }
+  }
+  return (k || "").trim();
+})();
+const MODEL             = "claude-sonnet-4-20250514";
+const API_URL           = "https://api.anthropic.com/v1/messages";
+/* ────────────────────────────────────────────────────────────────────────── */
+
 /* ── Claude API call ────────────────────────────────────────────────────── */
 async function ask(system, content) {
   const r = await fetch(API_URL, {
@@ -191,6 +147,61 @@ async function ask(system, content) {
   if(s===-1) throw new Error("No JSON in response. Please retry.");
   return JSON.parse(tx.slice(s,e+1));
 }
+</script>
+
+</head>
+<body>
+  <div id="root"><div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:Helvetica,sans-serif;color:#6b6b7a;font-size:14px;">Loading EmoVision…</div></div>
+
+<script type="text/babel">
+const { useState, useCallback, useEffect, useRef } = React;
+
+
+const C = {
+  ink:"#0a0a0f", paper:"#f5f2ec", ember:"#ff4d1c",
+  gold:"#f5c842", violet:"#7b2fff", teal:"#00d4b4",
+  muted:"#6b6b7a", border:"#e2ddd6", surface:"#ffffff",
+};
+
+const EGRADS = {
+  joy:"linear-gradient(135deg,#ff9a3c,#ff4d1c)",
+  happy:"linear-gradient(135deg,#ff9a3c,#ff4d1c)",
+  happiness:"linear-gradient(135deg,#ff9a3c,#ff4d1c)",
+  celebration:"linear-gradient(135deg,#f5c842,#ff9a3c)",
+  love:"linear-gradient(135deg,#ff6b9d,#ff4d1c)",
+  sadness:"linear-gradient(135deg,#4a6fa5,#2c4a7c)",
+  sad:"linear-gradient(135deg,#4a6fa5,#2c4a7c)",
+  nostalgia:"linear-gradient(135deg,#8B7355,#c9a96e)",
+  excitement:"linear-gradient(135deg,#7b2fff,#ff4d1c)",
+  excited:"linear-gradient(135deg,#7b2fff,#ff4d1c)",
+  calm:"linear-gradient(135deg,#00d4b4,#0099ff)",
+  peaceful:"linear-gradient(135deg,#00d4b4,#0099ff)",
+  awe:"linear-gradient(135deg,#1a1a2e,#7b2fff)",
+  wonder:"linear-gradient(135deg,#1a1a2e,#7b2fff)",
+  anger:"linear-gradient(135deg,#c0392b,#e74c3c)",
+  surprise:"linear-gradient(135deg,#f39c12,#e67e22)",
+  pride:"linear-gradient(135deg,#8e44ad,#3498db)",
+  gratitude:"linear-gradient(135deg,#27ae60,#2ecc71)",
+  content:"linear-gradient(135deg,#00b894,#00cec9)",
+  playful:"linear-gradient(135deg,#fdcb6e,#e17055)",
+};
+const emoGrad = e =>
+  EGRADS[(e||"").toLowerCase().replace(/[^a-z]/g,"")] ||
+  EGRADS[(e||"").toLowerCase().split(/[\s/,]/)[0]] ||
+  "linear-gradient(135deg,#0a0a0f,#2a2a3f)";
+
+const TABS = [
+  {id:"analysis", emoji:"🧠", label:"Analysis"},
+  {id:"captions", emoji:"✍️",  label:"Captions"},
+  {id:"hashtags", emoji:"🔖", label:"Hashtags"},
+  {id:"story",    emoji:"📖", label:"Story"},
+  {id:"palette",  emoji:"🎨", label:"Palette"},
+  {id:"styles",   emoji:"✨", label:"Styles"},
+];
+
+
+
+
 
 /* ── Shared atoms ───────────────────────────────────────────────────────── */
 function Bar({label,value,color}) {
