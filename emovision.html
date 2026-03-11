@@ -3,797 +3,762 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="EmoVision — Upload a photo. Feel the story. Emotion-driven AI creative platform." />
   <title>EmoVision — Emotion-Driven AI</title>
+  <!-- GitHub Pages: name this file index.html at repo root, enable Pages in Settings → Pages → main branch / root -->
+  <!-- To reset API key: localStorage.removeItem('emo_api_key') in browser console -->
+  <meta name="description" content="Upload a photo. Feel the story. Emotion-driven AI creative platform powered by Claude." />
 
-  <!-- React + Babel (no build step needed) -->
-  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
-  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
-  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
 
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html { scroll-behavior: smooth; }
-    body { background: #f5f2ec; font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; }
+    body { background: #f5f2ec; font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; color: #0a0a0f; }
 
-    @keyframes spin    { to { transform: rotate(360deg); } }
-    @keyframes fadeIn  { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-    @keyframes pulse   { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
-    .fade              { animation: fadeIn 0.35s ease both; }
-    button             { cursor: pointer; transition: opacity 0.15s; font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; }
-    button:hover       { opacity: 0.82; }
-    ::-webkit-scrollbar       { width: 4px; height: 4px; }
-    ::-webkit-scrollbar-thumb { background: #e2ddd6; border-radius: 2px; }
+    @keyframes spin   { to { transform: rotate(360deg); } }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes pulse  { 0%,100%{opacity:1} 50%{opacity:0.35} }
+    .fade { animation: fadeIn 0.4s ease both; }
 
-    /* API key modal */
-    #key-modal {
-      display: none; position: fixed; inset: 0; z-index: 9999;
-      background: rgba(10,10,15,0.75); backdrop-filter: blur(6px);
-      align-items: center; justify-content: center;
-    }
-    #key-modal.show { display: flex; }
-    #key-box {
-      background: #fff; border-radius: 12px; padding: 2.5rem;
-      width: 90%; max-width: 480px; box-shadow: 0 32px 80px rgba(0,0,0,0.3);
-    }
-    #key-box h2 { font-size: 22px; font-weight: 800; margin-bottom: 8px; letter-spacing: -0.02em; }
-    #key-box p  { font-size: 13px; color: #6b6b7a; line-height: 1.6; margin-bottom: 20px; }
-    #key-input  {
-      width: 100%; padding: 12px 14px; border: 2px solid #e2ddd6; border-radius: 6px;
-      font-size: 13px; font-family: monospace; margin-bottom: 12px; outline: none;
-      transition: border-color 0.2s;
-    }
-    #key-input:focus { border-color: #ff4d1c; }
-    #key-submit {
-      width: 100%; padding: 12px; background: #ff4d1c; color: #fff;
-      border: none; border-radius: 6px; font-size: 14px; font-weight: 700;
-      letter-spacing: 0.04em; text-transform: uppercase;
-    }
-    #key-note { font-size: 11px; color: #6b6b7a; margin-top: 10px; text-align: center; }
-    #key-note a { color: #ff4d1c; }
+    button { cursor:pointer; transition:opacity 0.15s; font-family:inherit; }
+    button:hover { opacity:0.8; }
+    ::-webkit-scrollbar { width:4px; height:4px; }
+    ::-webkit-scrollbar-thumb { background:#e2ddd6; border-radius:2px; }
   </style>
 </head>
 <body>
+  <div id="root"><div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:Helvetica,sans-serif;color:#6b6b7a;font-size:14px;">Loading EmoVision…</div></div>
 
-  <!-- API Key Modal -->
-  <div id="key-modal">
-    <div id="key-box">
-      <div style="font-size:32px;margin-bottom:12px">⚡</div>
-      <h2><span style="color:#ff4d1c">Emo</span>Vision Setup</h2>
-      <p>Enter your Anthropic API key to get started. Your key is stored only in your browser's session memory and never sent anywhere except directly to the Anthropic API.</p>
-      <input id="key-input" type="password" placeholder="sk-ant-api03-..." autocomplete="off" />
-      <button id="key-submit">Start EmoVision →</button>
-      <p id="key-note">Get your free key at <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a></p>
-    </div>
-  </div>
+<script type="text/babel">
+const { useState, useCallback, useEffect, useRef } = React;
 
-  <div id="root"></div>
+/* ── CONFIG — replace with your Anthropic API key ───────────────────────── */
+/* API key — stored in localStorage so you only enter it once */
+const ANTHROPIC_API_KEY = (() => {
+  let k = localStorage.getItem("emo_api_key");
+  if (!k || k.length < 10) {
+    k = prompt("Enter your Anthropic API key:\n(Stored locally in your browser only — never shared)");
+    if (k && k.trim().length > 10) {
+      localStorage.setItem("emo_api_key", k.trim());
+    }
+  }
+  return (k || "").trim();
+})();
+const MODEL             = "claude-sonnet-4-20250514";
+const API_URL           = "https://api.anthropic.com/v1/messages";
+/* ────────────────────────────────────────────────────────────────────────── */
 
-  <script type="text/babel">
-    const { useState, useCallback, useEffect } = React;
+const C = {
+  ink:"#0a0a0f", paper:"#f5f2ec", ember:"#ff4d1c",
+  gold:"#f5c842", violet:"#7b2fff", teal:"#00d4b4",
+  muted:"#6b6b7a", border:"#e2ddd6", surface:"#ffffff",
+};
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Constants
-    // ─────────────────────────────────────────────────────────────────────────
-    const API_URL = "https://api.anthropic.com/v1/messages";
-    const MODEL   = "claude-sonnet-4-20250514";
-    const font    = '"Helvetica Neue", Helvetica, Arial, sans-serif';
+const EGRADS = {
+  joy:"linear-gradient(135deg,#ff9a3c,#ff4d1c)",
+  happy:"linear-gradient(135deg,#ff9a3c,#ff4d1c)",
+  happiness:"linear-gradient(135deg,#ff9a3c,#ff4d1c)",
+  celebration:"linear-gradient(135deg,#f5c842,#ff9a3c)",
+  love:"linear-gradient(135deg,#ff6b9d,#ff4d1c)",
+  sadness:"linear-gradient(135deg,#4a6fa5,#2c4a7c)",
+  sad:"linear-gradient(135deg,#4a6fa5,#2c4a7c)",
+  nostalgia:"linear-gradient(135deg,#8B7355,#c9a96e)",
+  excitement:"linear-gradient(135deg,#7b2fff,#ff4d1c)",
+  excited:"linear-gradient(135deg,#7b2fff,#ff4d1c)",
+  calm:"linear-gradient(135deg,#00d4b4,#0099ff)",
+  peaceful:"linear-gradient(135deg,#00d4b4,#0099ff)",
+  awe:"linear-gradient(135deg,#1a1a2e,#7b2fff)",
+  wonder:"linear-gradient(135deg,#1a1a2e,#7b2fff)",
+  anger:"linear-gradient(135deg,#c0392b,#e74c3c)",
+  surprise:"linear-gradient(135deg,#f39c12,#e67e22)",
+  pride:"linear-gradient(135deg,#8e44ad,#3498db)",
+  gratitude:"linear-gradient(135deg,#27ae60,#2ecc71)",
+  content:"linear-gradient(135deg,#00b894,#00cec9)",
+  playful:"linear-gradient(135deg,#fdcb6e,#e17055)",
+};
+const emoGrad = e =>
+  EGRADS[(e||"").toLowerCase().replace(/[^a-z]/g,"")] ||
+  EGRADS[(e||"").toLowerCase().split(/[\s/,]/)[0]] ||
+  "linear-gradient(135deg,#0a0a0f,#2a2a3f)";
 
-    const C = {
-      ink:"#0a0a0f", paper:"#f5f2ec", ember:"#ff4d1c",
-      gold:"#f5c842", violet:"#7b2fff", teal:"#00d4b4",
-      muted:"#6b6b7a", border:"#e2ddd6", surface:"#ffffff",
-    };
+const TABS = [
+  {id:"analysis", emoji:"🧠", label:"Analysis"},
+  {id:"captions", emoji:"✍️",  label:"Captions"},
+  {id:"hashtags", emoji:"🔖", label:"Hashtags"},
+  {id:"story",    emoji:"📖", label:"Story"},
+  {id:"palette",  emoji:"🎨", label:"Palette"},
+  {id:"styles",   emoji:"✨", label:"Styles"},
+];
 
-    const EMO_GRAD = {
-      joy:"linear-gradient(135deg,#ff9a3c,#ff4d1c)",
-      happy:"linear-gradient(135deg,#ff9a3c,#ff4d1c)",
-      happiness:"linear-gradient(135deg,#ff9a3c,#ff4d1c)",
-      celebration:"linear-gradient(135deg,#f5c842,#ff9a3c)",
-      love:"linear-gradient(135deg,#ff6b9d,#ff4d1c)",
-      sadness:"linear-gradient(135deg,#4a6fa5,#2c4a7c)",
-      sad:"linear-gradient(135deg,#4a6fa5,#2c4a7c)",
-      nostalgia:"linear-gradient(135deg,#8B7355,#c9a96e)",
-      excitement:"linear-gradient(135deg,#7b2fff,#ff4d1c)",
-      excited:"linear-gradient(135deg,#7b2fff,#ff4d1c)",
-      calm:"linear-gradient(135deg,#00d4b4,#0099ff)",
-      peaceful:"linear-gradient(135deg,#00d4b4,#0099ff)",
-      awe:"linear-gradient(135deg,#1a1a2e,#7b2fff)",
-      anger:"linear-gradient(135deg,#c0392b,#e74c3c)",
-      surprise:"linear-gradient(135deg,#f39c12,#e67e22)",
-      pride:"linear-gradient(135deg,#8e44ad,#3498db)",
-      gratitude:"linear-gradient(135deg,#27ae60,#2ecc71)",
-    };
-    const emoGrad = (e="") =>
-      EMO_GRAD[e.toLowerCase().split(/[\s/,]/)[0]] ||
-      "linear-gradient(135deg,#0a0a0f,#2a2a3f)";
+/* ── Image compression → stays under 4 MB API limit ───────────────────── */
+function prepareImage(file) {
+  return new Promise((resolve, reject) => {
+    if (!file) { reject(new Error("No file.")); return; }
 
-    const TABS = [
-      {id:"analysis", emoji:"🧠", label:"Analysis"},
-      {id:"captions", emoji:"✍️",  label:"Captions"},
-      {id:"hashtags", emoji:"🔖", label:"Hashtags"},
-      {id:"story",    emoji:"📖", label:"Story"},
-      {id:"palette",  emoji:"🎨", label:"Palette"},
-      {id:"styles",   emoji:"✨", label:"Styles"},
-    ];
+    const ext    = (file.name||"").split(".").pop().toLowerCase();
+    const extMap = {jpg:"image/jpeg",jpeg:"image/jpeg",png:"image/png",gif:"image/gif",
+                    webp:"image/webp",heic:"image/jpeg",heif:"image/jpeg",avif:"image/jpeg",
+                    bmp:"image/jpeg",tiff:"image/jpeg",tif:"image/jpeg"};
+    const okMime = ["image/jpeg","image/png","image/gif","image/webp"];
+    const mime   = okMime.includes(file.type) ? file.type : (extMap[ext]||"image/jpeg");
+    const maxB   = 4*1024*1024;
+    const bSize  = s => Math.ceil(s.length*3/4);
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Image compression — enforces < 4 MB for the Anthropic API 5 MB limit
-    // ─────────────────────────────────────────────────────────────────────────
-    function prepareImage(file) {
-      return new Promise((resolve, reject) => {
-        if (!file) { reject(new Error("No file provided.")); return; }
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Could not read file."));
+    reader.onload  = ev => {
+      const raw = ev.target.result.split(",")[1];
+      if (!raw) { reject(new Error("Empty file.")); return; }
 
-        const ext      = (file.name || "").split(".").pop().toLowerCase();
-        const extMap   = { jpg:"image/jpeg", jpeg:"image/jpeg", png:"image/png",
-                           gif:"image/gif",  webp:"image/webp", heic:"image/jpeg",
-                           heif:"image/jpeg", avif:"image/jpeg", bmp:"image/jpeg",
-                           tiff:"image/jpeg", tif:"image/jpeg" };
-        const ok       = ["image/jpeg","image/png","image/gif","image/webp"];
-        const safeMime = ok.includes(file.type) ? file.type : (extMap[ext] || "image/jpeg");
-        const MAX_B    = 4 * 1024 * 1024; // 4 MB
-        const b64bytes = s => Math.ceil(s.length * 3 / 4);
+      try {
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        const t   = setTimeout(() => {
+          try{URL.revokeObjectURL(url);}catch(_){}
+          bSize(raw) <= maxB ? resolve({b64:raw,mime}) : reject(new Error("Image too large (>4 MB). Please use a smaller photo."));
+        }, 7000);
 
-        // Always read raw bytes first (works even in sandboxed iframes)
-        const reader = new FileReader();
-        reader.onerror = () => reject(new Error("Could not read file. Please try another image."));
-        reader.onload  = ev => {
-          const rawB64 = ev.target.result.split(",")[1];
-          if (!rawB64) { reject(new Error("Empty file.")); return; }
-
-          // Try canvas resize / recompress
+        img.onload = () => {
+          clearTimeout(t);
           try {
-            const url   = URL.createObjectURL(file);
-            const img   = new Image();
-            const guard = setTimeout(() => {
-              try { URL.revokeObjectURL(url); } catch(_){}
-              // Raw bytes fallback — only if within size limit
-              if (b64bytes(rawB64) <= MAX_B) resolve({ b64: rawB64, mime: safeMime });
-              else reject(new Error("Image is too large (>5 MB) and could not be compressed. Please use a smaller image."));
-            }, 6000);
+            const MAX = 1600;
+            let w = img.naturalWidth||800, h = img.naturalHeight||600;
+            if (w>MAX||h>MAX) { if(w>=h){h=Math.round(h*MAX/w);w=MAX;}else{w=Math.round(w*MAX/h);h=MAX;} }
 
-            img.onload = () => {
-              clearTimeout(guard);
-              try {
-                const MAX_DIM = 1600;
-                let w = img.naturalWidth  || 800;
-                let h = img.naturalHeight || 600;
-                if (w > MAX_DIM || h > MAX_DIM) {
-                  if (w >= h) { h = Math.round(h * MAX_DIM / w); w = MAX_DIM; }
-                  else        { w = Math.round(w * MAX_DIM / h); h = MAX_DIM; }
-                }
-
-                let quality = 0.88;
-                const draw  = (qw, qh, q) => {
-                  const c = document.createElement("canvas");
-                  c.width = qw; c.height = qh;
-                  c.getContext("2d").drawImage(img, 0, 0, qw, qh);
-                  return c.toDataURL("image/jpeg", q).split(",")[1];
-                };
-
-                let b64 = draw(w, h, quality);
-                let attempts = 0;
-                while (b64bytes(b64) > MAX_B && attempts < 12) {
-                  attempts++;
-                  if (quality > 0.35) { quality = Math.max(0.3, quality - 0.1); }
-                  else { w = Math.round(w * 0.75); h = Math.round(h * 0.75); quality = 0.82; }
-                  b64 = draw(w, h, quality);
-                }
-
-                try { URL.revokeObjectURL(url); } catch(_){}
-                if (b64bytes(b64) > MAX_B) {
-                  reject(new Error("Image is too large to compress within the API limit. Please use a smaller photo."));
-                } else {
-                  resolve({ b64, mime: "image/jpeg" });
-                }
-              } catch(err) {
-                try { URL.revokeObjectURL(url); } catch(_){}
-                if (b64bytes(rawB64) <= MAX_B) resolve({ b64: rawB64, mime: safeMime });
-                else reject(new Error("Image too large. Please use a smaller image."));
-              }
+            const draw = (dw,dh,q) => {
+              const c=document.createElement("canvas");
+              c.width=dw; c.height=dh;
+              c.getContext("2d").drawImage(img,0,0,dw,dh);
+              return c.toDataURL("image/jpeg",q).split(",")[1];
             };
 
-            img.onerror = () => {
-              clearTimeout(guard);
-              try { URL.revokeObjectURL(url); } catch(_){}
-              if (b64bytes(rawB64) <= MAX_B) resolve({ b64: rawB64, mime: safeMime });
-              else reject(new Error("Could not process image. Please try a JPG or PNG."));
-            };
-            img.src = url;
-
+            let q=0.88, b64=draw(w,h,q), tries=0;
+            while(bSize(b64)>maxB && tries<14) {
+              tries++;
+              if(q>0.35) q=Math.max(0.28,q-0.1);
+              else { w=Math.round(w*0.75); h=Math.round(h*0.75); q=0.85; }
+              b64=draw(w,h,q);
+            }
+            try{URL.revokeObjectURL(url);}catch(_){}
+            bSize(b64)<=maxB ? resolve({b64,mime:"image/jpeg"}) : reject(new Error("Image still too large after compression. Please use a smaller photo."));
           } catch(_) {
-            if (b64bytes(rawB64) <= MAX_B) resolve({ b64: rawB64, mime: safeMime });
-            else reject(new Error("Image too large. Please use a smaller image."));
+            try{URL.revokeObjectURL(url);}catch(__){}
+            bSize(raw)<=maxB ? resolve({b64:raw,mime}) : reject(new Error("Compression failed. Please use a smaller image."));
           }
         };
-        reader.readAsDataURL(file);
-      });
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Claude API call
-    // ─────────────────────────────────────────────────────────────────────────
-    async function callClaude(apiKey, system, content) {
-      const res = await fetch(API_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
-          "anthropic-dangerous-direct-browser-access": "true",
-        },
-        body: JSON.stringify({
-          model: MODEL, max_tokens: 1024,
-          system, messages: [{ role: "user", content }],
-        }),
-      });
-      if (!res.ok) {
-        let msg = `API error ${res.status}`;
-        try { const e = await res.json(); msg = e?.error?.message || msg; } catch(_){}
-        throw new Error(msg);
+        img.onerror = () => {
+          clearTimeout(t);
+          try{URL.revokeObjectURL(url);}catch(_){}
+          bSize(raw)<=maxB ? resolve({b64:raw,mime}) : reject(new Error("Could not process image. Try a JPG or PNG."));
+        };
+        img.src = url;
+      } catch(_) {
+        bSize(raw)<=maxB ? resolve({b64:raw,mime}) : reject(new Error("Image too large."));
       }
-      const data = await res.json();
-      const text = (data.content || []).map(b => b.text || "").join("");
-      const s = text.indexOf("{"), e = text.lastIndexOf("}");
-      if (s === -1) throw new Error("Model returned no JSON. Please retry.");
-      return JSON.parse(text.slice(s, e + 1));
-    }
+    };
+    reader.readAsDataURL(file);
+  });
+}
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Shared UI atoms
-    // ─────────────────────────────────────────────────────────────────────────
-    function Bar({ label, value, color }) {
-      return (
-        <div>
-          <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
-            <span style={{fontSize:11,color:"rgba(255,255,255,0.4)",textTransform:"uppercase",letterSpacing:"0.08em"}}>{label}</span>
-            <span style={{fontSize:11,color,fontWeight:700}}>{value}%</span>
-          </div>
-          <div style={{height:4,background:"rgba(255,255,255,0.08)",borderRadius:999,overflow:"hidden"}}>
-            <div style={{width:`${Math.min(100,value||0)}%`,height:"100%",background:color,borderRadius:999,transition:"width 1.2s ease"}} />
-          </div>
+/* ── Claude API call ────────────────────────────────────────────────────── */
+async function ask(system, content) {
+  const r = await fetch(API_URL, {
+    method:"POST",
+    headers:{
+      "Content-Type":"application/json",
+      "x-api-key": ANTHROPIC_API_KEY,
+      "anthropic-version":"2023-06-01",
+      "anthropic-dangerous-direct-browser-access":"true",
+    },
+    body: JSON.stringify({model:MODEL, max_tokens:1024, system,
+      messages:[{role:"user",content}]}),
+  });
+  if (!r.ok) {
+    let m=`API error ${r.status}`;
+    try{const e=await r.json();m=e?.error?.message||m;}catch(_){}
+    // If auth failed, wipe the cached key so user can re-enter next time
+    if (r.status===401 || r.status===403) {
+      localStorage.removeItem("emo_api_key");
+      m = "Invalid API key. Please refresh the page and enter a valid Anthropic API key.";
+    }
+    throw new Error(m);
+  }
+  const d  = await r.json();
+  const tx = (d.content||[]).map(b=>b.text||"").join("");
+  const s  = tx.indexOf("{"), e=tx.lastIndexOf("}");
+  if(s===-1) throw new Error("No JSON in response. Please retry.");
+  return JSON.parse(tx.slice(s,e+1));
+}
+
+/* ── Shared atoms ───────────────────────────────────────────────────────── */
+function Bar({label,value,color}) {
+  return (
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
+        <span style={{fontSize:11,color:"rgba(255,255,255,0.4)",textTransform:"uppercase",letterSpacing:"0.08em"}}>{label}</span>
+        <span style={{fontSize:11,color,fontWeight:700}}>{Math.min(100,value||0)}%</span>
+      </div>
+      <div style={{height:4,background:"rgba(255,255,255,0.1)",borderRadius:999,overflow:"hidden"}}>
+        <div style={{width:`${Math.min(100,value||0)}%`,height:"100%",background:color,borderRadius:999,transition:"width 1.2s ease"}}/>
+      </div>
+    </div>
+  );
+}
+
+function CopyBtn({text}) {
+  const [ok,setOk]=useState(false);
+  return (
+    <button onClick={()=>{try{navigator.clipboard.writeText(text)}catch(_){}setOk(true);setTimeout(()=>setOk(false),2000)}}
+      style={{background:"none",border:`1px solid ${C.border}`,borderRadius:4,
+        padding:"4px 12px",fontSize:11,color:C.muted}}>
+      📋 {ok?"Copied!":"Copy"}
+    </button>
+  );
+}
+
+function Tag({children,color=C.ember}) {
+  return <span style={{display:"inline-block",padding:"3px 11px",borderRadius:999,
+    fontSize:11,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",
+    background:color+"22",color,border:`1px solid ${color}44`}}>{children}</span>;
+}
+
+function Loader({msg}) {
+  return (
+    <div style={{textAlign:"center",padding:"2rem 1rem"}}>
+      <div style={{position:"relative",width:52,height:52,margin:"0 auto 14px"}}>
+        <div style={{position:"absolute",inset:0,borderRadius:"50%",border:`3px solid ${C.border}`}}/>
+        <div style={{position:"absolute",inset:0,borderRadius:"50%",border:"3px solid transparent",
+          borderTopColor:C.ember,animation:"spin 0.8s linear infinite"}}/>
+        <div style={{position:"absolute",inset:8,borderRadius:"50%",border:"2px solid transparent",
+          borderTopColor:C.violet,animation:"spin 1.4s linear infinite reverse"}}/>
+      </div>
+      <p style={{fontSize:13,color:C.muted,maxWidth:260,margin:"0 auto",lineHeight:1.6}}>{msg}</p>
+    </div>
+  );
+}
+
+/* ── Result panels ─────────────────────────────────────────────────────── */
+function AnalysisPanel({a}) {
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+      <div style={{borderRadius:8,background:emoGrad(a.primaryEmotion),padding:"1.5rem",color:"#fff"}}>
+        <div style={{fontSize:10,fontWeight:700,letterSpacing:"0.12em",textTransform:"uppercase",opacity:0.75,marginBottom:8}}>
+          Emotional Fingerprint™
         </div>
-      );
-    }
-
-    function CopyBtn({ text }) {
-      const [ok, setOk] = useState(false);
-      return (
-        <button onClick={()=>{try{navigator.clipboard.writeText(text)}catch(_){}setOk(true);setTimeout(()=>setOk(false),2000)}}
-          style={{background:"none",border:`1px solid ${C.border}`,borderRadius:4,
-            padding:"4px 12px",fontSize:11,color:C.muted}}>
-          📋 {ok?"Copied!":"Copy"}
-        </button>
-      );
-    }
-
-    function Tag({ children, color=C.ember }) {
-      return <span style={{display:"inline-block",padding:"3px 11px",borderRadius:999,
-        fontSize:11,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",
-        background:color+"22",color,border:`1px solid ${color}44`}}>{children}</span>;
-    }
-
-    function Spinner({ msg }) {
-      return (
-        <div style={{textAlign:"center",padding:"2.5rem 1rem"}}>
-          <div style={{position:"relative",width:52,height:52,margin:"0 auto 14px"}}>
-            <div style={{position:"absolute",inset:0,borderRadius:"50%",border:`3px solid ${C.border}`}} />
-            <div style={{position:"absolute",inset:0,borderRadius:"50%",border:"3px solid transparent",
-              borderTopColor:C.ember,animation:"spin 0.8s linear infinite"}} />
-            <div style={{position:"absolute",inset:8,borderRadius:"50%",border:"2px solid transparent",
-              borderTopColor:C.violet,animation:"spin 1.4s linear infinite reverse"}} />
-          </div>
-          <p style={{fontSize:13,color:C.muted,maxWidth:260,margin:"0 auto",lineHeight:1.6}}>{msg}</p>
+        <div style={{fontSize:30,fontWeight:800,letterSpacing:"-0.02em",marginBottom:6}}>{a.primaryEmotion}</div>
+        <div style={{fontSize:13,opacity:0.9,marginBottom:14,lineHeight:1.55}}>{a.emotionalNarrative}</div>
+        <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+          {(a.secondaryEmotions||[]).map(e=>(
+            <span key={e} style={{background:"rgba(255,255,255,0.22)",padding:"3px 11px",
+              borderRadius:999,fontSize:11,fontWeight:600}}>{e}</span>
+          ))}
         </div>
-      );
-    }
+      </div>
+      <div style={{background:C.ink,borderRadius:8,padding:"1.25rem",
+        display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+        <Bar label="Emotion"   value={a.emotionConfidence}  color={C.ember}  />
+        <Bar label="Energy"    value={a.energyLevel}        color={C.gold}   />
+        <Bar label="Context"   value={a.contextConfidence}  color={C.teal}   />
+        <Bar label="Trend Fit" value={a.trendScore}         color={C.violet} />
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+        {[["Scene",a.scene],["Context",a.socialContext],
+          ["Color Mood",a.colorMood],["Trend Style",a.trendAesthetic],
+          ["Body Language",a.bodyLanguage],["Time of Day",a.timeOfDay]
+        ].map(([k,v])=>(
+          <div key={k} style={{background:C.surface,border:`1px solid ${C.border}`,
+            padding:"9px 12px",borderRadius:6}}>
+            <div style={{fontSize:10,color:C.muted,textTransform:"uppercase",
+              letterSpacing:"0.08em",marginBottom:3}}>{k}</div>
+            <div style={{fontSize:13,fontWeight:600,color:C.ink}}>{v||"—"}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Result panels
-    // ─────────────────────────────────────────────────────────────────────────
-    function AnalysisPanel({ a }) {
-      return (
-        <div style={{display:"flex",flexDirection:"column",gap:14}}>
-          <div style={{borderRadius:6,background:emoGrad(a.primaryEmotion),padding:"1.5rem",color:"#fff"}}>
-            <div style={{fontSize:10,fontWeight:700,letterSpacing:"0.12em",textTransform:"uppercase",opacity:0.7,marginBottom:8}}>
-              Emotional Fingerprint™
-            </div>
-            <div style={{fontSize:28,fontWeight:800,letterSpacing:"-0.02em",marginBottom:6}}>{a.primaryEmotion}</div>
-            <div style={{fontSize:13,opacity:0.85,marginBottom:12,lineHeight:1.5}}>{a.emotionalNarrative}</div>
-            <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-              {(a.secondaryEmotions||[]).map(e=>(
-                <span key={e} style={{background:"rgba(255,255,255,0.2)",padding:"2px 10px",borderRadius:999,fontSize:11,fontWeight:600}}>{e}</span>
-              ))}
+function CaptionsPanel({captions}) {
+  const [i,setI]=useState(0);
+  const labels=["Poetic","Punchy","Story","Trending","Minimal"];
+  return (
+    <div style={{border:`1px solid ${C.border}`,borderRadius:8,overflow:"hidden"}}>
+      <div style={{background:C.ink,padding:"0.75rem 1rem",display:"flex",gap:6,overflowX:"auto"}}>
+        {labels.map((l,idx)=>(
+          <button key={l} onClick={()=>setI(idx)} style={{
+            background:i===idx?C.ember:"rgba(255,255,255,0.07)",
+            color:i===idx?"#fff":"rgba(255,255,255,0.5)",
+            border:"none",borderRadius:999,padding:"5px 14px",fontSize:11,
+            fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",whiteSpace:"nowrap"}}>
+            {l}
+          </button>
+        ))}
+      </div>
+      <div style={{padding:"1.5rem"}}>
+        <p style={{fontSize:15,lineHeight:1.75,marginBottom:14,color:C.ink}}>{captions?.[i]||"—"}</p>
+        <div style={{display:"flex",justifyContent:"flex-end"}}>
+          <CopyBtn text={captions?.[i]||""} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HashtagsPanel({hashtags,platformStrategy}) {
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+      <div style={{border:`1px solid ${C.border}`,borderRadius:8,padding:"1.5rem"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+          <span style={{fontSize:11,fontWeight:700,letterSpacing:"0.1em",
+            textTransform:"uppercase",color:C.muted}}>Hashtags</span>
+          <CopyBtn text={(hashtags||[]).join(" ")} />
+        </div>
+        <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+          {(hashtags||[]).map(h=>(
+            <span key={h}
+              onClick={()=>{try{navigator.clipboard.writeText(h)}catch(_){}}}
+              title="Click to copy"
+              style={{background:C.ember+"15",color:C.ember,border:`1px solid ${C.ember}33`,
+                padding:"5px 14px",borderRadius:999,fontSize:12,fontWeight:600,cursor:"pointer"}}>
+              {h}
+            </span>
+          ))}
+        </div>
+      </div>
+      {platformStrategy&&(
+        <div style={{border:`1px solid ${C.border}`,borderRadius:8,padding:"1.25rem"}}>
+          <div style={{fontSize:11,color:C.muted,textTransform:"uppercase",
+            letterSpacing:"0.08em",marginBottom:8}}>Platform Strategy</div>
+          <p style={{fontSize:13,color:C.ink,lineHeight:1.65}}>{platformStrategy}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StoryPanel({story}) {
+  const cols=[C.ember,C.gold,C.teal];
+  return (
+    <div style={{border:`1px solid ${C.border}`,borderRadius:8,overflow:"hidden"}}>
+      <div style={{background:C.ink,padding:"1rem 1.25rem"}}>
+        <span style={{fontSize:11,fontWeight:700,letterSpacing:"0.1em",
+          textTransform:"uppercase",color:"rgba(255,255,255,0.45)"}}>Visual Story Arc</span>
+      </div>
+      <div style={{padding:"1.5rem",display:"flex",flexDirection:"column",gap:18}}>
+        {(story?.frames||[]).map((f,i)=>(
+          <div key={i} style={{display:"flex",gap:14,alignItems:"flex-start"}}>
+            <div style={{width:38,height:38,borderRadius:8,flexShrink:0,
+              background:cols[i]+"22",border:`2px solid ${cols[i]}`,
+              display:"flex",alignItems:"center",justifyContent:"center",
+              fontSize:15,fontWeight:800,color:cols[i]}}>{i+1}</div>
+            <div style={{flex:1}}>
+              <div style={{fontSize:12,fontWeight:700,textTransform:"uppercase",
+                letterSpacing:"0.06em",marginBottom:4,color:C.ink}}>{f.title}</div>
+              <div style={{fontSize:13,color:C.muted,lineHeight:1.55,marginBottom:6}}>{f.description}</div>
+              <div style={{fontSize:12,color:cols[i],fontStyle:"italic"}}>"{f.caption}"</div>
             </div>
           </div>
-          <div style={{background:C.ink,borderRadius:6,padding:"1.25rem",display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-            <Bar label="Emotion"   value={a.emotionConfidence}  color={C.ember}  />
-            <Bar label="Energy"    value={a.energyLevel}        color={C.gold}   />
-            <Bar label="Context"   value={a.contextConfidence}  color={C.teal}   />
-            <Bar label="Trend Fit" value={a.trendScore}         color={C.violet} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PalettePanel({palette}) {
+  return (
+    <div style={{border:`1px solid ${C.border}`,borderRadius:8,overflow:"hidden"}}>
+      <div style={{display:"flex",height:90}}>
+        {(palette?.colors||[]).map((col,i)=>(
+          <div key={i} title={`Copy ${col}`}
+            onClick={()=>{try{navigator.clipboard.writeText(col)}catch(_){}}}
+            style={{flex:1,background:col,cursor:"pointer",display:"flex",
+              alignItems:"flex-end",justifyContent:"center",paddingBottom:6}}>
+            <span style={{fontSize:9,fontWeight:700,color:"rgba(255,255,255,0.9)",
+              textShadow:"0 1px 4px rgba(0,0,0,0.8)"}}>{col}</span>
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-            {[["Scene",a.scene],["Context",a.socialContext],["Color Mood",a.colorMood],
-              ["Trend Style",a.trendAesthetic],["Body Language",a.bodyLanguage],["Time of Day",a.timeOfDay]
-            ].map(([k,v])=>(
-              <div key={k} style={{background:C.surface,border:`1px solid ${C.border}`,padding:"9px 11px",borderRadius:4}}>
-                <div style={{fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:2}}>{k}</div>
-                <div style={{fontSize:13,fontWeight:600}}>{v}</div>
-              </div>
+        ))}
+      </div>
+      <div style={{padding:"1.25rem"}}>
+        <p style={{fontSize:13,color:C.ink,lineHeight:1.6,marginBottom:12}}>{palette?.analysis}</p>
+        <div style={{display:"flex",gap:8}}>
+          <Tag color={C.teal}>{palette?.mood}</Tag>
+          <Tag color={C.violet}>{palette?.temperature}</Tag>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StylesPanel({styles}) {
+  const [i,setI]=useState(0);
+  const s=(styles||[])[i];
+  const grads=[
+    "linear-gradient(135deg,#ff9a3c,#ff4d1c)",
+    "linear-gradient(135deg,#7b2fff,#ff006e)",
+    "linear-gradient(135deg,#00d4b4,#0099ff)",
+    "linear-gradient(135deg,#f5c842,#ff9a3c)",
+  ];
+  return (
+    <div style={{border:`1px solid ${C.border}`,borderRadius:8,overflow:"hidden"}}>
+      <div style={{display:"flex",borderBottom:`1px solid ${C.border}`}}>
+        {(styles||[]).map((st,idx)=>(
+          <button key={idx} onClick={()=>setI(idx)} style={{
+            flex:1,padding:"11px 6px",border:"none",
+            background:i===idx?C.ink:C.surface,
+            color:i===idx?"#fff":C.muted,
+            fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em",
+            borderRight:idx<styles.length-1?`1px solid ${C.border}`:"none"}}>
+            {st.name||`Style ${idx+1}`}
+          </button>
+        ))}
+      </div>
+      {s&&(
+        <div style={{padding:"1.5rem"}}>
+          <div style={{height:88,borderRadius:8,background:grads[i],marginBottom:14,
+            display:"flex",alignItems:"center",justifyContent:"center",fontSize:36}}>
+            {s.emoji}
+          </div>
+          <div style={{fontSize:15,fontWeight:700,marginBottom:6,color:C.ink}}>{s.styleName}</div>
+          <p style={{fontSize:13,color:C.muted,lineHeight:1.5,marginBottom:12}}>{s.description}</p>
+          <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:14}}>
+            {(s.keywords||[]).map(k=>(
+              <span key={k} style={{background:C.paper,border:`1px solid ${C.border}`,
+                padding:"3px 10px",borderRadius:999,fontSize:11,color:C.muted}}>{k}</span>
             ))}
           </div>
-        </div>
-      );
-    }
-
-    function CaptionsPanel({ captions }) {
-      const [active, setActive] = useState(0);
-      const labels = ["Poetic","Punchy","Story","Trending","Minimal"];
-      return (
-        <div style={{border:`1px solid ${C.border}`,borderRadius:6,overflow:"hidden"}}>
-          <div style={{background:C.ink,padding:"0.75rem 1rem",display:"flex",gap:6,overflowX:"auto"}}>
-            {labels.map((l,i)=>(
-              <button key={l} onClick={()=>setActive(i)} style={{
-                background:active===i?C.ember:"rgba(255,255,255,0.07)",
-                color:active===i?"#fff":"rgba(255,255,255,0.5)",
-                border:"none",borderRadius:999,padding:"5px 14px",fontSize:11,
-                fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",whiteSpace:"nowrap"}}>
-                {l}
-              </button>
-            ))}
-          </div>
-          <div style={{padding:"1.5rem"}}>
-            <p style={{fontSize:15,lineHeight:1.7,marginBottom:14}}>{captions?.[active]||"—"}</p>
-            <div style={{display:"flex",justifyContent:"flex-end"}}>
-              <CopyBtn text={captions?.[active]||""} />
+          <div style={{background:C.ink,borderRadius:6,padding:"12px 14px",marginBottom:10}}>
+            <div style={{fontSize:10,color:"rgba(255,255,255,0.35)",textTransform:"uppercase",
+              letterSpacing:"0.08em",marginBottom:6}}>Generation Prompt</div>
+            <div style={{fontSize:12,color:"rgba(255,255,255,0.85)",fontFamily:"monospace",lineHeight:1.65}}>
+              {s.prompt}
             </div>
+          </div>
+          <div style={{display:"flex",justifyContent:"flex-end"}}>
+            <CopyBtn text={s.prompt||""} />
           </div>
         </div>
-      );
-    }
+      )}
+    </div>
+  );
+}
 
-    function HashtagsPanel({ hashtags, platformStrategy }) {
-      return (
-        <div style={{display:"flex",flexDirection:"column",gap:14}}>
-          <div style={{border:`1px solid ${C.border}`,borderRadius:6,padding:"1.5rem"}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-              <span style={{fontSize:11,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",color:C.muted}}>Hashtags</span>
-              <CopyBtn text={(hashtags||[]).join(" ")} />
-            </div>
-            <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
-              {(hashtags||[]).map(h=>(
-                <span key={h} onClick={()=>{try{navigator.clipboard.writeText(h)}catch(_){}}} title="Click to copy"
-                  style={{background:C.ember+"15",color:C.ember,border:`1px solid ${C.ember}33`,
-                    padding:"5px 13px",borderRadius:999,fontSize:12,fontWeight:600,cursor:"pointer"}}>
-                  {h}
-                </span>
-              ))}
-            </div>
-          </div>
-          {platformStrategy&&(
-            <div style={{border:`1px solid ${C.border}`,borderRadius:6,padding:"1.25rem"}}>
-              <div style={{fontSize:11,color:C.muted,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:8}}>Platform Strategy</div>
-              <p style={{fontSize:13,lineHeight:1.65}}>{platformStrategy}</p>
-            </div>
+/* ── Main App ───────────────────────────────────────────────────────────── */
+function App() {
+  const [phase,     setPhase]     = useState("upload");
+  const [imgSrc,    setImgSrc]    = useState(null);
+  const [loadMsg,   setLoadMsg]   = useState("");
+  const [results,   setResults]   = useState(null);
+  const [activeTab, setActiveTab] = useState("analysis");
+  const [error,     setError]     = useState(null);
+  const [dragOver,  setDragOver]  = useState(false);
+
+  const run = useCallback(async (file) => {
+    if (!file) return;
+
+    // Accept any plausible image
+    const ext      = (file.name||"").split(".").pop().toLowerCase();
+    const imgExts  = ["jpg","jpeg","png","gif","webp","heic","heif","avif","bmp","tiff","tif","jfif"];
+    const looksOk  = file.type.startsWith("image/") || imgExts.includes(ext) || file.type==="";
+    if (!looksOk) { setError("Please upload an image file."); return; }
+
+    setError(null);
+    setImgSrc(URL.createObjectURL(file));
+    setPhase("analyzing");
+
+    try {
+      // Compress
+      setLoadMsg("Preparing image…");
+      const {b64, mime} = await prepareImage(file);
+      const img = {type:"image", source:{type:"base64", media_type:mime, data:b64}};
+
+      // Stage 1 — emotion + context
+      setLoadMsg("Detecting emotions and reading the scene…");
+      const a = await ask(
+        "You are EmoVision's Emotional Intelligence Engine. Return ONLY valid JSON. No markdown, no explanation.",
+        [img, {type:"text", text:
+`Analyze this image. Return ONLY valid JSON — every field must reflect what is actually in this image:
+{"primaryEmotion":"","secondaryEmotions":["","",""],"emotionConfidence":0,"energyLevel":0,"contextConfidence":0,"trendScore":0,"emotionalNarrative":"","scene":"","socialContext":"","colorMood":"","trendAesthetic":"","bodyLanguage":"","culturalSignals":"","timeOfDay":"","overallMomentScore":0}`
+        }]
+      );
+
+      // Stage 2 — captions + hashtags
+      setLoadMsg("Writing captions that capture the feeling…");
+      const c = await ask(
+        "You are EmoVision's Narrative Engine. Return ONLY valid JSON. No markdown.",
+        [img, {type:"text", text:
+`Image: emotion="${a.primaryEmotion}", scene="${a.scene}". Write creative outputs for THIS specific image.
+Return ONLY this JSON:
+{"captions":["[poetic 1-2 sentences]","[punchy max 10 words]","[storytelling 2-3 sentences]","[trending with emoji]","[minimal 3-6 words]"],"hashtags":["#tag1","#tag2","#tag3","#tag4","#tag5","#tag6","#tag7","#tag8"],"platformStrategy":"Two sentences on how to post this across Instagram, TikTok, and LinkedIn."}`
+        }]
+      );
+
+      // Stage 3 — story + palette + styles
+      setLoadMsg("Building your visual story and style directions…");
+      const cr = await ask(
+        "You are EmoVision's Creative Director. Return ONLY valid JSON. No markdown.",
+        [img, {type:"text", text:
+`Image: emotion="${a.primaryEmotion}", scene="${a.scene}". Create for THIS specific image.
+Return ONLY this JSON:
+{"story":{"frames":[{"title":"Opening Frame","description":"","caption":""},{"title":"Emotional Peak","description":"","caption":""},{"title":"Resolution","description":"","caption":""}]},"palette":{"colors":["#hex1","#hex2","#hex3","#hex4","#hex5"],"analysis":"","mood":"","temperature":""},"styles":[{"name":"Style 1","emoji":"🌟","styleName":"Vivid Cinematic","description":"","keywords":["","",""],"prompt":""},{"name":"Style 2","emoji":"🎞","styleName":"Film Grain","description":"","keywords":["","",""],"prompt":""},{"name":"Style 3","emoji":"🌊","styleName":"Soft Ethereal","description":"","keywords":["","",""],"prompt":""},{"name":"Style 4","emoji":"⚡","styleName":"High Contrast","description":"","keywords":["","",""],"prompt":""}]}`
+        }]
+      );
+
+      setResults({
+        analysis:         a,
+        captions:         c.captions,
+        hashtags:         c.hashtags,
+        platformStrategy: c.platformStrategy,
+        story:            cr.story,
+        palette:          cr.palette,
+        styles:           cr.styles,
+      });
+      setPhase("results");
+
+    } catch(err) {
+      console.error("EmoVision error:", err);
+      setError(err.message || "Analysis failed. Please try again.");
+      setPhase("upload");
+    }
+  }, []);
+
+  const onFileInput = e => { const f=e.target.files?.[0]; if(f) run(f); e.target.value=""; };
+  const onDrop      = e => { e.preventDefault(); setDragOver(false); const f=e.dataTransfer.files?.[0]; if(f) run(f); };
+  const reset       = () => { setPhase("upload"); setResults(null); setImgSrc(null); setError(null); };
+
+  return (
+    <div style={{background:C.paper,minHeight:"100vh",color:C.ink}}>
+
+      {/* NAV */}
+      <nav style={{position:"sticky",top:0,zIndex:100,
+        background:"rgba(245,242,236,0.95)",backdropFilter:"blur(12px)",
+        borderBottom:`1px solid ${C.border}`,
+        display:"flex",alignItems:"center",justifyContent:"space-between",
+        padding:"0 1.5rem",height:54}}>
+
+        <div style={{display:"flex",alignItems:"center",gap:9}}>
+          <div style={{width:30,height:30,borderRadius:8,background:C.ember,
+            display:"flex",alignItems:"center",justifyContent:"center",fontSize:15}}>⚡</div>
+          <span style={{fontWeight:800,fontSize:17,letterSpacing:"-0.02em"}}>
+            <span style={{color:C.ember}}>Emo</span>Vision
+          </span>
+          <span style={{fontSize:10,background:C.ember,color:"#fff",
+            padding:"2px 8px",borderRadius:999,fontWeight:700,letterSpacing:"0.06em"}}>AI</span>
+        </div>
+
+        <div style={{display:"flex",alignItems:"center",gap:16}}>
+          {phase!=="upload"&&(
+            <button onClick={reset} style={{background:"none",border:`1px solid ${C.border}`,
+              borderRadius:6,padding:"6px 16px",fontSize:12,fontWeight:600,color:C.muted}}>
+              ↩ New Image
+            </button>
           )}
-        </div>
-      );
-    }
-
-    function StoryPanel({ story }) {
-      const cols = [C.ember, C.gold, C.teal];
-      return (
-        <div style={{border:`1px solid ${C.border}`,borderRadius:6,overflow:"hidden"}}>
-          <div style={{background:C.ink,padding:"0.85rem 1.25rem"}}>
-            <span style={{fontSize:11,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",color:"rgba(255,255,255,0.4)"}}>Visual Story Arc</span>
-          </div>
-          <div style={{padding:"1.5rem",display:"flex",flexDirection:"column",gap:16}}>
-            {(story?.frames||[]).map((f,i)=>(
-              <div key={i} style={{display:"flex",gap:12,alignItems:"flex-start"}}>
-                <div style={{width:36,height:36,borderRadius:6,flexShrink:0,
-                  background:cols[i]+"22",border:`2px solid ${cols[i]}`,
-                  display:"flex",alignItems:"center",justifyContent:"center",
-                  fontSize:14,fontWeight:800,color:cols[i]}}>{i+1}</div>
-                <div>
-                  <div style={{fontSize:12,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:4}}>{f.title}</div>
-                  <div style={{fontSize:13,color:C.muted,lineHeight:1.5,marginBottom:5}}>{f.description}</div>
-                  <div style={{fontSize:12,color:cols[i],fontStyle:"italic"}}>"{f.caption}"</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      );
-    }
-
-    function PalettePanel({ palette }) {
-      return (
-        <div style={{border:`1px solid ${C.border}`,borderRadius:6,overflow:"hidden"}}>
-          <div style={{display:"flex",height:90}}>
-            {(palette?.colors||[]).map((col,i)=>(
-              <div key={i} title={`Click to copy ${col}`}
-                onClick={()=>{try{navigator.clipboard.writeText(col)}catch(_){}}}
-                style={{flex:1,background:col,cursor:"pointer",display:"flex",
-                  alignItems:"flex-end",justifyContent:"center",paddingBottom:5}}>
-                <span style={{fontSize:9,fontWeight:700,color:"rgba(255,255,255,0.9)",textShadow:"0 1px 3px rgba(0,0,0,0.7)"}}>{col}</span>
-              </div>
-            ))}
-          </div>
-          <div style={{padding:"1.25rem"}}>
-            <p style={{fontSize:13,lineHeight:1.6,marginBottom:10}}>{palette?.analysis}</p>
-            <div style={{display:"flex",gap:8}}>
-              <Tag color={C.teal}>{palette?.mood}</Tag>
-              <Tag color={C.violet}>{palette?.temperature}</Tag>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    function StylesPanel({ styles }) {
-      const [active, setActive] = useState(0);
-      const s = (styles||[])[active];
-      const grads = [
-        "linear-gradient(135deg,#ff9a3c,#ff4d1c)",
-        "linear-gradient(135deg,#7b2fff,#ff006e)",
-        "linear-gradient(135deg,#00d4b4,#0099ff)",
-        "linear-gradient(135deg,#f5c842,#ff9a3c)",
-      ];
-      return (
-        <div style={{border:`1px solid ${C.border}`,borderRadius:6,overflow:"hidden"}}>
-          <div style={{display:"flex",borderBottom:`1px solid ${C.border}`}}>
-            {(styles||[]).map((st,i)=>(
-              <button key={i} onClick={()=>setActive(i)} style={{
-                flex:1,padding:"10px 6px",border:"none",
-                background:active===i?C.ink:C.surface,
-                color:active===i?"#fff":C.muted,
-                fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em",
-                borderRight:i<styles.length-1?`1px solid ${C.border}`:"none"}}>
-                {st.name||`Style ${i+1}`}
-              </button>
-            ))}
-          </div>
-          {s&&(
-            <div style={{padding:"1.5rem"}}>
-              <div style={{height:84,borderRadius:6,background:grads[active],marginBottom:14,
-                display:"flex",alignItems:"center",justifyContent:"center",fontSize:34}}>{s.emoji}</div>
-              <div style={{fontSize:15,fontWeight:700,marginBottom:6}}>{s.styleName}</div>
-              <p style={{fontSize:13,color:C.muted,lineHeight:1.5,marginBottom:10}}>{s.description}</p>
-              <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:12}}>
-                {(s.keywords||[]).map(k=>(
-                  <span key={k} style={{background:C.paper,border:`1px solid ${C.border}`,
-                    padding:"2px 10px",borderRadius:999,fontSize:11,color:C.muted}}>{k}</span>
-                ))}
-              </div>
-              <div style={{background:C.ink,borderRadius:4,padding:"12px 14px",marginBottom:10}}>
-                <div style={{fontSize:10,color:"rgba(255,255,255,0.35)",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:6}}>
-                  Generation Prompt
-                </div>
-                <div style={{fontSize:12,color:"rgba(255,255,255,0.8)",fontFamily:"monospace",lineHeight:1.6}}>{s.prompt}</div>
-              </div>
-              <div style={{display:"flex",justifyContent:"flex-end"}}>
-                <CopyBtn text={s.prompt||""} />
-              </div>
-            </div>
-          )}
-        </div>
-      );
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Main App
-    // ─────────────────────────────────────────────────────────────────────────
-    function App() {
-      const [apiKey,    setApiKey]    = useState("");
-      const [phase,     setPhase]     = useState("upload");
-      const [imgSrc,    setImgSrc]    = useState(null);
-      const [loadMsg,   setLoadMsg]   = useState("");
-      const [results,   setResults]   = useState(null);
-      const [activeTab, setActiveTab] = useState("analysis");
-      const [error,     setError]     = useState(null);
-      const [dragOver,  setDragOver]  = useState(false);
-
-      // Load saved key on mount
-      useEffect(() => {
-        const saved = sessionStorage.getItem("emo_key");
-        if (saved) { setApiKey(saved); }
-        else { document.getElementById("key-modal").classList.add("show"); }
-      }, []);
-
-      const run = useCallback(async (file) => {
-        if (!file) return;
-        const ext = (file.name||"").split(".").pop().toLowerCase();
-        const imgExts = ["jpg","jpeg","png","gif","webp","heic","heif","avif","bmp","tiff","tif","jfif"];
-        if (!file.type.startsWith("image/") && !imgExts.includes(ext) && file.type !== "") {
-          setError("Please upload an image file (JPG, PNG, WEBP, HEIC, etc.)");
-          return;
-        }
-        setError(null);
-        setImgSrc(URL.createObjectURL(file));
-        setPhase("analyzing");
-
-        try {
-          const key = sessionStorage.getItem("emo_key") || apiKey;
-          if (!key) throw new Error("No API key found. Please refresh and enter your key.");
-
-          setLoadMsg("Compressing image…");
-          const { b64, mime } = await prepareImage(file);
-          const imgBlock = { type:"image", source:{ type:"base64", media_type:mime, data:b64 } };
-
-          setLoadMsg("Detecting emotions and reading the scene…");
-          const a = await callClaude(key,
-            "You are EmoVision's Emotional Intelligence Engine. Return ONLY valid JSON. No markdown, no extra text.",
-            [imgBlock, { type:"text", text:
-              `Analyze this image carefully. Return ONLY this JSON with real values for THIS image:
-{"primaryEmotion":"Joy","secondaryEmotions":["Warmth","Connection","Delight"],"emotionConfidence":88,"energyLevel":72,"contextConfidence":91,"trendScore":78,"emotionalNarrative":"One genuine sentence describing the emotional story of this moment.","scene":"Describe the actual scene","socialContext":"Describe social context","colorMood":"Describe color mood","trendAesthetic":"Describe trend aesthetic","bodyLanguage":"Describe body language","culturalSignals":"Describe cultural signals","timeOfDay":"Morning/Afternoon/Evening/Night","overallMomentScore":85}`
-            }]
-          );
-
-          setLoadMsg("Writing captions that capture the feeling…");
-          const c = await callClaude(key,
-            "You are EmoVision's Narrative Engine. Return ONLY valid JSON. No markdown.",
-            [imgBlock, { type:"text", text:
-              `Primary emotion: "${a.primaryEmotion}", scene: "${a.scene}". Return ONLY this JSON with creative captions for THIS image:
-{"captions":["lyrical poetic caption 1-2 sentences","punchy memorable max 10 words","storytelling narrative 2-3 sentences","trending relatable with relevant emoji","minimal powerful 3-6 words"],"hashtags":["#Tag1","#Tag2","#Tag3","#Tag4","#Tag5","#Tag6","#Tag7","#Tag8"],"platformStrategy":"Two sentences on how to deploy this content across Instagram, TikTok, and LinkedIn."}`
-            }]
-          );
-
-          setLoadMsg("Building story arc and style directions…");
-          const cr = await callClaude(key,
-            "You are EmoVision's Creative Director. Return ONLY valid JSON. No markdown.",
-            [imgBlock, { type:"text", text:
-              `Image emotion: ${a.primaryEmotion}, scene: ${a.scene}. Return ONLY this JSON with creative values for THIS image:
-{"story":{"frames":[{"title":"Opening Frame","description":"visual framing description","caption":"opening micro-caption"},{"title":"Emotional Peak","description":"climax moment description","caption":"peak emotion micro-caption"},{"title":"Resolution","description":"visual resolution description","caption":"closing micro-caption"}]},"palette":{"colors":["#hex1","#hex2","#hex3","#hex4","#hex5"],"analysis":"Two sentences on the emotional meaning of these specific colors.","mood":"mood word","temperature":"Warm or Cool or Neutral"},"styles":[{"name":"Style 1","emoji":"🌟","styleName":"Vivid Cinematic","description":"rich saturated film look","keywords":["cinematic","vivid","dramatic"],"prompt":"cinematic photography, golden hour, vibrant colors, bokeh, 35mm film, professional lighting"},{"name":"Style 2","emoji":"🎞","styleName":"Film Grain","description":"vintage analog warmth","keywords":["grain","analog","muted"],"prompt":"vintage film photography, grain texture, muted warm tones, kodak portra, nostalgic analog"},{"name":"Style 3","emoji":"🌊","styleName":"Soft Ethereal","description":"dreamy pastel softness","keywords":["soft","dreamy","pastel"],"prompt":"soft dreamy photography, pastel tones, overexposed, hazy light, ethereal lifestyle"},{"name":"Style 4","emoji":"⚡","styleName":"High Contrast","description":"bold graphic stark look","keywords":["bold","graphic","stark"],"prompt":"high contrast black and white photography, deep shadows, bright highlights, editorial"}]}`
-            }]
-          );
-
-          setResults({ analysis:a, captions:c.captions, hashtags:c.hashtags,
-            platformStrategy:c.platformStrategy, story:cr.story, palette:cr.palette, styles:cr.styles });
-          setPhase("results");
-
-        } catch(err) {
-          console.error(err);
-          setError(err.message || "Analysis failed. Please try again.");
-          setPhase("upload");
-        }
-      }, [apiKey]);
-
-      const handleFile  = e => { const f=e.target.files?.[0]; if(f) run(f); e.target.value=""; };
-      const handleDrop  = e => { e.preventDefault(); setDragOver(false); const f=e.dataTransfer.files?.[0]; if(f) run(f); };
-      const reset       = () => { setPhase("upload"); setResults(null); setImgSrc(null); setError(null); };
-
-      return (
-        <div style={{fontFamily:font,background:C.paper,minHeight:"100vh",color:C.ink}}>
-
-          {/* NAV */}
-          <nav style={{position:"sticky",top:0,zIndex:100,background:"rgba(245,242,236,0.96)",
-            backdropFilter:"blur(10px)",borderBottom:`1px solid ${C.border}`,
-            display:"flex",alignItems:"center",justifyContent:"space-between",
-            padding:"0 1.5rem",height:52}}>
-            <div style={{display:"flex",alignItems:"center",gap:8}}>
-              <div style={{width:28,height:28,borderRadius:6,background:C.ember,
-                display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>⚡</div>
-              <span style={{fontWeight:800,fontSize:16,letterSpacing:"-0.02em"}}>
-                <span style={{color:C.ember}}>Emo</span>Vision
-              </span>
-              <span style={{fontSize:10,background:C.ember,color:"#fff",
-                padding:"2px 7px",borderRadius:999,fontWeight:700}}>AI</span>
-            </div>
-            <div style={{display:"flex",alignItems:"center",gap:14}}>
-              {phase!=="upload"&&(
-                <button onClick={reset} style={{background:"none",border:`1px solid ${C.border}`,
-                  borderRadius:4,padding:"6px 14px",fontSize:12,fontWeight:600,color:C.muted}}>
-                  ↩ New Image
-                </button>
-              )}
-              <div style={{display:"flex",gap:10}}>
-                {[["Upload",0],["Analyze",1],["Results",2]].map(([label,i])=>{
-                  const done   = (i===0&&phase!=="upload")||(i===1&&phase==="results");
-                  const active = (i===0&&phase==="upload")||(i===1&&phase==="analyzing")||(i===2&&phase==="results");
-                  return (
-                    <div key={label} style={{display:"flex",alignItems:"center",gap:5,opacity:done||active?1:0.3}}>
-                      <div style={{width:22,height:22,borderRadius:"50%",fontSize:11,fontWeight:700,
-                        background:done?C.teal:active?C.ember:C.border,
-                        color:done||active?"#fff":C.muted,
-                        display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.3s"}}>
-                        {done?"✓":i+1}
-                      </div>
-                      <span style={{fontSize:11,fontWeight:600,
-                        color:active?C.ink:C.muted,textTransform:"uppercase",letterSpacing:"0.04em"}}>
-                        {label}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </nav>
-
-          {/* ── UPLOAD ── */}
-          {phase==="upload"&&(
-            <div className="fade" style={{maxWidth:620,margin:"0 auto",padding:"3rem 1.5rem"}}>
-              <div style={{textAlign:"center",marginBottom:"2.5rem"}}>
-                <div style={{display:"inline-flex",alignItems:"center",gap:7,
-                  background:C.ember+"18",border:`1px solid ${C.ember}33`,
-                  borderRadius:999,padding:"5px 14px",marginBottom:18}}>
-                  <span style={{width:6,height:6,borderRadius:"50%",background:C.ember,
-                    display:"inline-block",animation:"pulse 1.5s infinite"}} />
-                  <span style={{fontSize:11,fontWeight:700,letterSpacing:"0.1em",
-                    textTransform:"uppercase",color:C.ember}}>Emotion-Driven AI</span>
-                </div>
-                <h1 style={{fontSize:36,fontWeight:800,letterSpacing:"-0.03em",lineHeight:1.1,marginBottom:14}}>
-                  Upload a photo.<br /><span style={{color:C.ember}}>Feel the story.</span>
-                </h1>
-                <p style={{fontSize:14,color:C.muted,maxWidth:380,margin:"0 auto",lineHeight:1.75}}>
-                  EmoVision reads the emotional meaning of your moment and generates captions, hashtags, story arcs, colour palettes, and style directions — automatically.
-                </p>
-              </div>
-
-              <label
-                onDragOver={e=>{e.preventDefault();setDragOver(true)}}
-                onDragLeave={()=>setDragOver(false)}
-                onDrop={handleDrop}
-                style={{display:"block",cursor:"pointer",marginBottom:14,
-                  border:`2px dashed ${dragOver?C.ember:C.border}`,
-                  borderRadius:10,padding:"3rem 2rem",textAlign:"center",
-                  background:dragOver?C.ember+"08":C.surface,transition:"all 0.25s"}}>
-                <input type="file" accept="image/*"
-                  style={{position:"absolute",width:1,height:1,opacity:0,pointerEvents:"none"}}
-                  onChange={handleFile} />
-                <div style={{fontSize:48,marginBottom:12}}>📸</div>
-                <div style={{fontWeight:700,fontSize:17,marginBottom:8}}>Drop your image here</div>
-                <div style={{color:C.muted,fontSize:13,marginBottom:22}}>
-                  or click anywhere in this box to browse your files
-                </div>
-                <div style={{display:"inline-flex",alignItems:"center",gap:8,
-                  background:C.ember,color:"#fff",borderRadius:6,
-                  padding:"11px 28px",fontSize:13,fontWeight:700,
-                  letterSpacing:"0.05em",textTransform:"uppercase",pointerEvents:"none"}}>
-                  ↑ Choose Image
-                </div>
-                <div style={{marginTop:14,fontSize:11,color:C.muted}}>
-                  JPG · PNG · WEBP · HEIC · GIF · Any size (auto-compressed to fit API)
-                </div>
-              </label>
-
-              {error&&(
-                <div style={{padding:"11px 16px",background:"#fff0ed",
-                  border:`1px solid ${C.ember}55`,borderRadius:6,
-                  color:C.ember,fontSize:13,marginBottom:14,lineHeight:1.5}}>
-                  ⚠️ {error}
-                </div>
-              )}
-
-              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
-                {[["🧠","Emotion Analysis","27-state detection"],
-                  ["✍️","5 Captions","Poetic to punchy"],
-                  ["🔖","Hashtags","Trend-matched"],
-                  ["📖","Story Arc","3-frame narrative"],
-                  ["🎨","Colour Palette","Emotion-mapped"],
-                  ["✨","Style Prompts","AI gen-ready"],
-                ].map(([e,l,d])=>(
-                  <div key={l} style={{background:C.surface,border:`1px solid ${C.border}`,
-                    borderRadius:6,padding:"12px 10px",textAlign:"center"}}>
-                    <div style={{fontSize:22,marginBottom:5}}>{e}</div>
-                    <div style={{fontSize:12,fontWeight:700,marginBottom:2}}>{l}</div>
-                    <div style={{fontSize:11,color:C.muted}}>{d}</div>
+          <div style={{display:"flex",gap:12}}>
+            {[["Upload",0],["Analyze",1],["Results",2]].map(([lbl,i])=>{
+              const done   = (i===0&&phase!=="upload")||(i===1&&phase==="results");
+              const active = (i===0&&phase==="upload")||(i===1&&phase==="analyzing")||(i===2&&phase==="results");
+              return (
+                <div key={lbl} style={{display:"flex",alignItems:"center",gap:5,opacity:done||active?1:0.28}}>
+                  <div style={{width:22,height:22,borderRadius:"50%",fontSize:11,fontWeight:700,
+                    background:done?C.teal:active?C.ember:C.border,
+                    color:done||active?"#fff":C.muted,
+                    display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.3s"}}>
+                    {done?"✓":i+1}
                   </div>
-                ))}
-              </div>
+                  <span style={{fontSize:11,fontWeight:600,color:active?C.ink:C.muted,
+                    textTransform:"uppercase",letterSpacing:"0.05em"}}>{lbl}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </nav>
+
+      {/* ── UPLOAD ── */}
+      {phase==="upload"&&(
+        <div className="fade" style={{maxWidth:640,margin:"0 auto",padding:"3.5rem 1.5rem"}}>
+
+          <div style={{textAlign:"center",marginBottom:"2.5rem"}}>
+            <div style={{display:"inline-flex",alignItems:"center",gap:7,
+              background:C.ember+"18",border:`1px solid ${C.ember}30`,
+              borderRadius:999,padding:"5px 16px",marginBottom:20}}>
+              <span style={{width:6,height:6,borderRadius:"50%",background:C.ember,
+                display:"inline-block",animation:"pulse 1.5s infinite"}}/>
+              <span style={{fontSize:11,fontWeight:700,letterSpacing:"0.1em",
+                textTransform:"uppercase",color:C.ember}}>Emotion-Driven AI</span>
+            </div>
+            <h1 style={{fontSize:38,fontWeight:800,letterSpacing:"-0.03em",lineHeight:1.08,marginBottom:14}}>
+              Upload a photo.<br/>
+              <span style={{color:C.ember}}>Feel the story.</span>
+            </h1>
+            <p style={{fontSize:14,color:C.muted,maxWidth:400,margin:"0 auto",lineHeight:1.8}}>
+              EmoVision reads the emotional meaning of your moment and generates captions, hashtags, story arcs, colour palettes, and style directions — automatically.
+            </p>
+          </div>
+
+          {/* Drop zone — label wraps input so entire zone is clickable */}
+          <label
+            onDragOver={e=>{e.preventDefault();setDragOver(true)}}
+            onDragLeave={()=>setDragOver(false)}
+            onDrop={onDrop}
+            style={{display:"block",cursor:"pointer",marginBottom:16,
+              border:`2px dashed ${dragOver?C.ember:C.border}`,
+              borderRadius:12,padding:"3rem 2rem",textAlign:"center",
+              background:dragOver?C.ember+"09":C.surface,
+              transition:"all 0.25s",
+              boxShadow:dragOver?`0 0 0 4px ${C.ember}22`:"none"}}>
+            <input type="file" accept="image/*"
+              style={{position:"absolute",width:1,height:1,opacity:0,pointerEvents:"none"}}
+              onChange={onFileInput}/>
+            <div style={{fontSize:52,marginBottom:14}}>📸</div>
+            <div style={{fontWeight:700,fontSize:18,marginBottom:8,color:C.ink}}>
+              Drop your image here
+            </div>
+            <div style={{color:C.muted,fontSize:13,marginBottom:24}}>
+              or click anywhere in this box to browse your files
+            </div>
+            <div style={{display:"inline-flex",alignItems:"center",gap:8,background:C.ember,
+              color:"#fff",borderRadius:8,padding:"12px 30px",fontSize:13,fontWeight:700,
+              letterSpacing:"0.05em",textTransform:"uppercase",pointerEvents:"none"}}>
+              ↑ Choose Image
+            </div>
+            <div style={{marginTop:16,fontSize:11,color:C.muted}}>
+              JPG · PNG · WEBP · HEIC · GIF · Any size (auto-compressed)
+            </div>
+          </label>
+
+          {error&&(
+            <div style={{padding:"12px 16px",background:"#fff0ed",
+              border:`1px solid ${C.ember}44`,borderRadius:8,
+              color:C.ember,fontSize:13,lineHeight:1.5,marginBottom:16}}>
+              ⚠️ {error}
             </div>
           )}
 
-          {/* ── ANALYZING ── */}
-          {phase==="analyzing"&&(
-            <div className="fade" style={{maxWidth:520,margin:"0 auto",padding:"3rem 1.5rem"}}>
-              <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,
-                padding:"2rem",display:"flex",gap:"1.5rem",alignItems:"flex-start"}}>
-                {imgSrc&&<img src={imgSrc} alt="" style={{width:110,height:110,objectFit:"cover",
-                  borderRadius:6,flexShrink:0,border:`3px solid ${C.ember}`}} />}
-                <div style={{flex:1}}>
-                  <Tag color={C.ember}>Analyzing</Tag>
-                  <h2 style={{fontSize:17,fontWeight:800,margin:"10px 0 4px",
-                    letterSpacing:"-0.02em",lineHeight:1.3}}>
-                    Reading the emotional truth of your moment
-                  </h2>
-                  <Spinner msg={loadMsg} />
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
+            {[["🧠","Emotion Analysis","27-state detection"],
+              ["✍️","5 Captions","Poetic to punchy"],
+              ["🔖","Hashtags","Trend-matched"],
+              ["📖","Story Arc","3-frame narrative"],
+              ["🎨","Colour Palette","Emotion-mapped"],
+              ["✨","Style Prompts","AI gen-ready"],
+            ].map(([e,l,d])=>(
+              <div key={l} style={{background:C.surface,border:`1px solid ${C.border}`,
+                borderRadius:8,padding:"14px 10px",textAlign:"center"}}>
+                <div style={{fontSize:24,marginBottom:6}}>{e}</div>
+                <div style={{fontSize:12,fontWeight:700,marginBottom:3,color:C.ink}}>{l}</div>
+                <div style={{fontSize:11,color:C.muted}}>{d}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── ANALYZING ── */}
+      {phase==="analyzing"&&(
+        <div className="fade" style={{maxWidth:540,margin:"0 auto",padding:"3rem 1.5rem"}}>
+          <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,
+            padding:"2rem",display:"flex",gap:"1.5rem",alignItems:"flex-start"}}>
+            {imgSrc&&(
+              <img src={imgSrc} alt="" style={{width:120,height:120,objectFit:"cover",
+                borderRadius:8,flexShrink:0,border:`3px solid ${C.ember}`}}/>
+            )}
+            <div style={{flex:1,minWidth:0}}>
+              <Tag color={C.ember}>Analyzing</Tag>
+              <h2 style={{fontSize:16,fontWeight:800,margin:"10px 0 4px",
+                letterSpacing:"-0.02em",lineHeight:1.35,color:C.ink}}>
+                Reading the emotional truth of your moment
+              </h2>
+              <Loader msg={loadMsg}/>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── RESULTS ── */}
+      {phase==="results"&&results&&(
+        <div className="fade" style={{maxWidth:1060,margin:"0 auto",padding:"2rem 1.5rem"}}>
+          <div style={{display:"grid",gridTemplateColumns:"250px 1fr",gap:"1.75rem",alignItems:"start"}}>
+
+            {/* Sidebar */}
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              {imgSrc&&(
+                <img src={imgSrc} alt="" style={{width:"100%",aspectRatio:"1",
+                  objectFit:"cover",borderRadius:8,border:`2px solid ${C.border}`}}/>
+              )}
+              <div style={{background:C.ink,borderRadius:8,padding:"1.1rem",color:"#fff"}}>
+                <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",textTransform:"uppercase",
+                  letterSpacing:"0.08em",marginBottom:8}}>Moment Score</div>
+                <div style={{fontSize:34,fontWeight:800,color:C.gold,letterSpacing:"-0.02em",lineHeight:1}}>
+                  {results.analysis.overallMomentScore||"—"}
+                  <span style={{fontSize:14,color:"rgba(255,255,255,0.3)",fontWeight:400}}>/100</span>
+                </div>
+                <div style={{fontSize:12,color:"rgba(255,255,255,0.5)",marginTop:7,lineHeight:1.5}}>
+                  {results.analysis.emotionalNarrative}
                 </div>
               </div>
+              {[
+                ["Primary", results.analysis.primaryEmotion,   C.ember],
+                ["Scene",   results.analysis.scene,            C.teal],
+                ["Time",    results.analysis.timeOfDay,        C.gold],
+                ["Trend",   results.analysis.trendAesthetic,   C.violet],
+              ].map(([k,v,col])=>(
+                <div key={k} style={{background:C.surface,border:`1px solid ${C.border}`,
+                  borderLeft:`3px solid ${col}`,padding:"8px 12px",borderRadius:4}}>
+                  <div style={{fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:"0.08em"}}>{k}</div>
+                  <div style={{fontSize:13,fontWeight:700,color:C.ink}}>{v||"—"}</div>
+                </div>
+              ))}
+              <button onClick={reset} style={{background:"none",border:`1px solid ${C.border}`,
+                borderRadius:8,padding:10,fontSize:12,fontWeight:600,color:C.muted}}>
+                ↩ Analyze Another Image
+              </button>
             </div>
-          )}
 
-          {/* ── RESULTS ── */}
-          {phase==="results"&&results&&(
-            <div className="fade" style={{maxWidth:1040,margin:"0 auto",padding:"2rem 1.5rem"}}>
-              <div style={{display:"grid",gridTemplateColumns:"240px 1fr",gap:"1.5rem",alignItems:"start"}}>
-
-                {/* Sidebar */}
-                <div style={{display:"flex",flexDirection:"column",gap:10}}>
-                  {imgSrc&&<img src={imgSrc} alt="" style={{width:"100%",aspectRatio:"1",
-                    objectFit:"cover",borderRadius:6,border:`2px solid ${C.border}`}} />}
-                  <div style={{background:C.ink,borderRadius:6,padding:"1rem",color:"#fff"}}>
-                    <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",textTransform:"uppercase",
-                      letterSpacing:"0.08em",marginBottom:7}}>Moment Score</div>
-                    <div style={{fontSize:32,fontWeight:800,color:C.gold,letterSpacing:"-0.02em",lineHeight:1}}>
-                      {results.analysis.overallMomentScore}
-                      <span style={{fontSize:13,color:"rgba(255,255,255,0.3)",fontWeight:400}}>/100</span>
-                    </div>
-                    <div style={{fontSize:12,color:"rgba(255,255,255,0.5)",marginTop:6,lineHeight:1.5}}>
-                      {results.analysis.emotionalNarrative}
-                    </div>
-                  </div>
-                  {[["Primary",results.analysis.primaryEmotion,C.ember],
-                    ["Scene",results.analysis.scene,C.teal],
-                    ["Time",results.analysis.timeOfDay,C.gold],
-                    ["Trend",results.analysis.trendAesthetic,C.violet],
-                  ].map(([k,v,col])=>(
-                    <div key={k} style={{background:C.surface,border:`1px solid ${C.border}`,
-                      borderLeft:`3px solid ${col}`,padding:"7px 11px",borderRadius:4}}>
-                      <div style={{fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:"0.08em"}}>{k}</div>
-                      <div style={{fontSize:13,fontWeight:700}}>{v}</div>
-                    </div>
-                  ))}
-                  <button onClick={reset} style={{background:"none",border:`1px solid ${C.border}`,
-                    borderRadius:6,padding:10,fontSize:12,fontWeight:600,color:C.muted}}>
-                    ↩ Analyze Another Image
+            {/* Tab area */}
+            <div>
+              <div style={{display:"flex",borderBottom:`1px solid ${C.border}`,
+                marginBottom:20,overflowX:"auto"}}>
+                {TABS.map(tab=>(
+                  <button key={tab.id} onClick={()=>setActiveTab(tab.id)} style={{
+                    background:"none",border:"none",padding:"12px 14px",
+                    fontSize:12,fontWeight:700,
+                    color:activeTab===tab.id?C.ember:C.muted,
+                    borderBottom:activeTab===tab.id?`2px solid ${C.ember}`:"2px solid transparent",
+                    whiteSpace:"nowrap",textTransform:"uppercase",letterSpacing:"0.06em",
+                    display:"flex",alignItems:"center",gap:5,transition:"color 0.2s"}}>
+                    {tab.emoji} {tab.label}
                   </button>
-                </div>
-
-                {/* Tabs */}
-                <div>
-                  <div style={{display:"flex",borderBottom:`1px solid ${C.border}`,marginBottom:18,overflowX:"auto"}}>
-                    {TABS.map(tab=>(
-                      <button key={tab.id} onClick={()=>setActiveTab(tab.id)} style={{
-                        background:"none",border:"none",padding:"11px 14px",fontSize:12,fontWeight:700,
-                        color:activeTab===tab.id?C.ember:C.muted,
-                        borderBottom:activeTab===tab.id?`2px solid ${C.ember}`:"2px solid transparent",
-                        whiteSpace:"nowrap",textTransform:"uppercase",letterSpacing:"0.06em",
-                        display:"flex",alignItems:"center",gap:5,transition:"color 0.2s"}}>
-                        {tab.emoji} {tab.label}
-                      </button>
-                    ))}
-                  </div>
-                  <div key={activeTab} className="fade">
-                    {activeTab==="analysis" && <AnalysisPanel  a={results.analysis} />}
-                    {activeTab==="captions" && <CaptionsPanel  captions={results.captions} />}
-                    {activeTab==="hashtags" && <HashtagsPanel  hashtags={results.hashtags} platformStrategy={results.platformStrategy} />}
-                    {activeTab==="story"    && <StoryPanel     story={results.story} />}
-                    {activeTab==="palette"  && <PalettePanel   palette={results.palette} />}
-                    {activeTab==="styles"   && <StylesPanel    styles={results.styles} />}
-                  </div>
-                </div>
+                ))}
+              </div>
+              <div key={activeTab} className="fade">
+                {activeTab==="analysis" && <AnalysisPanel  a={results.analysis}/>}
+                {activeTab==="captions" && <CaptionsPanel  captions={results.captions}/>}
+                {activeTab==="hashtags" && <HashtagsPanel  hashtags={results.hashtags} platformStrategy={results.platformStrategy}/>}
+                {activeTab==="story"    && <StoryPanel     story={results.story}/>}
+                {activeTab==="palette"  && <PalettePanel   palette={results.palette}/>}
+                {activeTab==="styles"   && <StylesPanel    styles={results.styles}/>}
               </div>
             </div>
-          )}
-
-          <footer style={{borderTop:`1px solid ${C.border}`,padding:"1.5rem",textAlign:"center",marginTop:"3rem"}}>
-            <span style={{fontWeight:800,fontSize:14}}><span style={{color:C.ember}}>Emo</span>Vision</span>
-            <span style={{color:C.muted,fontSize:12,marginLeft:10}}>Emotion-Driven AI · Powered by Claude</span>
-          </footer>
+          </div>
         </div>
-      );
-    }
+      )}
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // API key modal wiring (plain JS, outside React)
-    // ─────────────────────────────────────────────────────────────────────────
-    document.getElementById("key-submit").addEventListener("click", () => {
-      const val = document.getElementById("key-input").value.trim();
-      if (!val.startsWith("sk-")) {
-        document.getElementById("key-input").style.borderColor = "#ff4d1c";
-        document.getElementById("key-input").placeholder = "Must start with sk-ant-...";
-        return;
-      }
-      sessionStorage.setItem("emo_key", val);
-      document.getElementById("key-modal").classList.remove("show");
-    });
-    document.getElementById("key-input").addEventListener("keydown", e => {
-      if (e.key === "Enter") document.getElementById("key-submit").click();
-    });
+      <footer style={{borderTop:`1px solid ${C.border}`,padding:"1.5rem",
+        textAlign:"center",marginTop:"4rem"}}>
+        <span style={{fontWeight:800,fontSize:14}}>
+          <span style={{color:C.ember}}>Emo</span>Vision
+        </span>
+        <span style={{color:C.muted,fontSize:12,marginLeft:10}}>
+          Emotion-Driven AI Creative Platform · Powered by Claude
+        </span>
+      </footer>
+    </div>
+  );
+}
 
-    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
-  </script>
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
 </body>
 </html>
-
-
